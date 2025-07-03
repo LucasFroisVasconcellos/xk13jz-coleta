@@ -1,6 +1,6 @@
-// Versão 1.1.0 — última atualização em 2025-07-03T16:31:31Z
+// Versão 1.1.1 — última atualização em 2025-07-03T16:33:59Z
 
-(function() {/*
+(function() {
     'use strict';
 
     // =======================================================================
