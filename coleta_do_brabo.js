@@ -1,6 +1,6 @@
 // Versão 1.0.2 — última atualização em 2025-07-03T15:53:58Z
 
-(function() {/*
+(function() {
     'use strict';
 
     // =======================================================================
@@ -144,4 +144,4 @@
     async function tick(){let e=await GM_getValue(STORAGE_KEY,{}),t=new Date().getTime(),o="",a=!1;for(const n in e){const l=e[n];if(l.ativo)if(t>=l.proximaExecucao){o+=`<div><b>${n}:</b> Executando agora...</div>`,e[n].ativo=!1,await GM_setValue(STORAGE_KEY,e);const c=await executarColetaUnica(n,l.tropas,l.tempoDesejado),r=await GM_getValue(STORAGE_KEY,{});r[n]&&(-1===c?delete r[n]:r[n]={...l,ativo:!0,proximaExecucao:new Date().getTime()+(c+DELAY_APOS_COLETA_SEGUNDOS)*1e3},await GM_setValue(STORAGE_KEY,r)),a=!0;break}else{const s=(l.proximaExecucao-t)/1e3;o+=`<div><b>${n}:</b> Próximo envio em ${formatarSegundos(s)}</div>`}}a||(statusLog.innerHTML=o||"Automação parada.")}
     btnLigar.addEventListener("click",async()=>{const t=Array.from(document.querySelectorAll("#selecao-tropas input:checked")).map(e=>e.value),o=parseTempoParaSegundos(document.getElementById("tempo-alvo").value),e=Array.from(document.querySelectorAll("#selecao-coletas input:checked")).map(e=>e.value);if(0===t.length||o<=0||0===e.length)return void alert("Por favor, selecione as coletas, as tropas e um tempo válido.");let a={};const n=new Date().getTime();e.forEach(e=>{a[e]={ativo:!0,proximaExecucao:n,tropas:t,tempoDesejado:o}}),await GM_setValue(STORAGE_KEY,a),automationInterval&&clearInterval(automationInterval),automationInterval=setInterval(tick,5e3),btnLigar.classList.add("btn-disabled"),btnParar.classList.remove("btn-disabled"),tick()}),btnParar.addEventListener("click",async()=>{automationInterval&&clearInterval(automationInterval),automationInterval=null,await GM_setValue(STORAGE_KEY,{}),btnLigar.classList.remove("btn-disabled"),btnParar.classList.add("btn-disabled"),statusLog.innerHTML="Automação parada."}),async function(){const e=await GM_getValue(STORAGE_KEY,{});0<Object.keys(e).length&&(automationInterval=setInterval(tick,5e3),btnLigar.classList.add("btn-disabled"),btnParar.classList.remove("btn-disabled"),tick())}()
 
-*/})();
+})();
