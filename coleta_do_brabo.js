@@ -1,9 +1,6 @@
 (function() {
     'use strict';
 
-    // =======================================================================
-    //  1. BANCO DE DADOS E CONSTANTES
-    // =======================================================================
     const STORAGE_KEY = 'scavenging_automation_state_final_v9.5';
     const DELAY_APOS_COLETA_SEGUNDOS = 10;
     const CAPACIDADE_TROPAS = { spear: 25, sword: 15, axe: 10, archer: 10, light: 80, marcher: 50, heavy: 50, knight: 100 };
@@ -11,9 +8,6 @@
     const FATORES_COLETA = { "Pequena Coleta": 0.10, "Média Coleta": 0.25, "Grande Coleta": 0.50, "Extrema Coleta": 0.75 };
     const CONSTANTES_FORMULA = { DURATION_EXPONENT: 0.45000, DURATION_INITIAL_SECONDS: 1800, DURATION_FACTOR: 0.683013 };
 
-    // =======================================================================
-    //  2. INTERFACE GRÁFICA (Com suas melhorias)
-    // =======================================================================
     const HTML_PAINEL = `
         <div id="auto-painel-container">
             <h3 id="auto-painel-header">Automação de Coleta (v9.5)</h3>
@@ -43,7 +37,6 @@
             </div>
         </div>
     `;
-    // CSS ATUALIZADO COM SUA SUGESTÃO
     const CSS_PAINEL = `
         #auto-painel-container {
             position: absolute;
@@ -70,7 +63,6 @@
     document.head.insertAdjacentHTML('beforeend', `<style>${CSS_PAINEL}</style>`);
     document.body.insertAdjacentHTML('beforeend', HTML_PAINEL);
 
-    // Preenche os checkboxes
     const contColetas = document.getElementById('selecao-coletas');
     Object.keys(FATORES_COLETA).forEach(nomeColeta => {
         const id = `chk-coleta-auto-${nomeColeta.replace(/\s+/g, '')}`;
@@ -83,12 +75,8 @@
         contTropas.innerHTML += `<span class="checkbox-container"><input type="checkbox" id="${id}" value="${nomeTropa}"><label for="${id}" title="${nomeEmPortugues}">${nomeEmPortugues}</label></span>`;
     });
 
-    // =======================================================================
-    //  3. LÓGICA DE INTERATIVIDADE DO PAINEL (Suas funções)
-    // =======================================================================
     const painelPrincipal = document.getElementById('auto-painel-container');
 
-    // SOLUÇÃO 1: TORNAR ARRASTÁVEL
     function tornarArrastavel(elemento) {
         let offsetX = 0, offsetY = 0, arrastando = false;
         const cabecalho = elemento.querySelector('#auto-painel-header');
@@ -112,9 +100,8 @@
     }
     tornarArrastavel(painelPrincipal);
 
-    // SOLUÇÃO 2: BOTÃO DE MINIMIZAR
     const botaoMinimizar = document.createElement('button');
-    botaoMinimizar.textContent = "−"; // Símbolo de menos
+    botaoMinimizar.textContent = "−";
     botaoMinimizar.style.cssText = "position:absolute; top:5px; right:5px; font-weight:bold; width: 20px; height: 20px; line-height: 1; border-radius: 3px;";
     botaoMinimizar.onclick = () => {
         const conteudo = document.getElementById('painel-conteudo-completo');
@@ -124,16 +111,11 @@
     };
     painelPrincipal.appendChild(botaoMinimizar);
 
-
-    // =======================================================================
-    //  4. LÓGICA DA AUTOMAÇÃO (Inalterada)
-    // =======================================================================
     let automationInterval = null;
     const btnLigar = document.getElementById('btn-ligar-automacao');
     const btnParar = document.getElementById('btn-parar-automacao');
     const statusLog = document.getElementById('status-log');
-    // ... (O restante do código de automação, que já está funcionando, continua aqui sem alterações)
-    // As funções parseTempoParaSegundos, formatarSegundos, calcularCapacidadeNecessaria, executarColetaUnica, tick, e os eventListeners dos botões permanecem os mesmos da v9.4.
+
     function parseTempoParaSegundos(t){const e=t.split(":").map(Number);return 3===e.length?3600*e[0]+60*e[1]+e[2]:0}
     function formatarSegundos(s){if(s<0)s=0;const t=Math.floor(s/3600),e=Math.floor(s%3600/60),o=Math.round(s%60);return[t,e,o].map(t=>t<10?"0"+t:t).join(":")}
     function calcularCapacidadeNecessaria(t,e){const o=FATORES_COLETA[e];if(!o||t<=0)return 0;const a=t/CONSTANTES_FORMULA.DURATION_FACTOR,n=a-CONSTANTES_FORMULA.DURATION_INITIAL_SECONDS;if(n<0)return 0;const l=Math.pow(n,1/CONSTANTES_FORMULA.DURATION_EXPONENT),r=l/100/Math.pow(o,2);return Math.sqrt(r)}
