@@ -1,4 +1,4 @@
-// Versão 1.0.3 — última atualização em 2025-07-03T16:00:33Z
+// Versão 1.0.4 — última atualização em 2025-07-03T16:07:11Z
 
 (function() {
     'use strict';
