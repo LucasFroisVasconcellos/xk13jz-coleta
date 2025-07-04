@@ -1,9 +1,9 @@
-// Versão 1.1.9 — última atualização em 2025-07-04T02:24:12Z
+// Versão 1.2.0 — última atualização em 2025-07-04T02:24:12Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
 // @namespace    http://tampermonkey.net/
-// @version      9.4-Refactored-VisualLock
+// @version      9.6-Refactored-VisualLock
 // @description  Automação com feedback visual para coletas bloqueadas.
 // @author       Seu Nome Aqui
 // @match        *://*/game.php*screen=place&mode=scavenge*
@@ -177,7 +177,7 @@
             const container = document.createElement('div');
             container.id = 'cdb-painel-container';
             const title = document.createElement('h3');
-            title.textContent = 'Automação de Coleta (v9.5)';
+            title.textContent = 'Automação de Coleta (v9.6)';
             const configPanel = document.createElement('div');
             configPanel.id = 'cdb-config-panel';
             const coletasSection = document.createElement('div');
@@ -205,7 +205,7 @@
             this.elements.tempoAlvoInput.type = 'time';
             this.elements.tempoAlvoInput.id = 'cdb-tempo-alvo';
             this.elements.tempoAlvoInput.step = '1';
-            this.elements.tempoAlvoInput.value = '00:40:00';
+            this.elements.tempoAlvoInput.value = '01:00:00';
             tempoSection.append(tempoLabel, this.elements.tempoAlvoInput);
             const botoesSection = document.createElement('div');
             botoesSection.className = 'cdb-grupo-secao-botoes';
