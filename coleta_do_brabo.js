@@ -1,4 +1,4 @@
-// Versão 1.1.7 — última atualização em 2025-07-04T02:21:39Z
+// Versão 1.1.8 — última atualização em 2025-07-04T02:21:39Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
