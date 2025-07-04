@@ -1,10 +1,10 @@
-// Versão 1.1.6 — última atualização em 2025-07-04T00:23:55Z
+// Versão 1.1.3 — última atualização em 2025-07-03T16:39:03Z
 
 // ==UserScript==
-// @name         Coletor do Brabo (Refatorado v6)
+// @name         Coletor do Brabo (Refatorado v10)
 // @namespace    http://tampermonkey.net/
-// @version      9.4-Refactored-TimeInput
-// @description  Automação com seletor de tempo nativo para melhor usabilidade.
+// @version      9.4-Refactored-VisualLock
+// @description  Automação com feedback visual para coletas bloqueadas.
 // @author       Seu Nome Aqui
 // @match        *://*/game.php*screen=place&mode=scavenge*
 // @grant        GM_setValue
@@ -22,12 +22,15 @@
         STORAGE_KEY: 'scavenging_automation_state_final_v9.4',
         DELAY_APOS_COLETA_SEGUNDOS: 10,
         TICK_INTERVAL_MS: 5000,
-        CAPACIDADE_TROPAS: {
-            spear: 25, sword: 15, axe: 10, archer: 10, light: 80, marcher: 50, heavy: 50, knight: 100
-        },
-        NOMES_TROPAS_PT: {
-            spear: "Lanceiro", sword: "Espadachim", axe: "Bárbaro", archer: "Arqueiro",
-            light: "C. Leve", marcher: "C. Arqueira", heavy: "C. Pesada", knight: "Paladino"
+        TROOP_DATA: {
+            spear:   { nome: "Lanceiro",    capacidade: 25, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_spear.png" },
+            sword:   { nome: "Espadachim",  capacidade: 15, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_sword.png" },
+            axe:     { nome: "Bárbaro",     capacidade: 10, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_axe.png" },
+            archer:  { nome: "Arqueiro",    capacidade: 10, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_archer.png" },
+            light:   { nome: "C. Leve",     capacidade: 80, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_light.png" },
+            marcher: { nome: "C. Arqueira", capacidade: 50, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_marcher.png" },
+            heavy:   { nome: "C. Pesada",   capacidade: 50, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_heavy.png" },
+            knight:  { nome: "Paladino",    capacidade: 100, icone: "https://dsbr.innogamescdn.com/asset/8d3d81dd/graphic/unit/unit_knight.png" }
         },
         FATORES_COLETA: {
             "Pequena Coleta": 0.10, "Média Coleta": 0.25, "Grande Coleta": 0.50, "Extrema Coleta": 0.75
@@ -69,6 +72,25 @@
     };
 
     // =======================================================================
+    //  MÓDULO DE VALIDAÇÃO
+    // =======================================================================
+    const Validator = {
+        getAvailableScavengeOptions(scavengeOptionElements) {
+            const availableOptions = [];
+            scavengeOptionElements.forEach(option => {
+                const isLocked = option.querySelector('a.unlock-button');
+                if (!isLocked) {
+                    const titleEl = option.querySelector('.title');
+                    if (titleEl) {
+                        availableOptions.push(titleEl.innerText.trim());
+                    }
+                }
+            });
+            return availableOptions;
+        }
+    };
+
+    // =======================================================================
     //  3. MÓDULO DE INTERFACE (UI)
     // =======================================================================
     const UI = {
@@ -83,7 +105,13 @@
             .cdb-grupo-secao-botoes { display: flex; justify-content: space-around; margin-top: 15px; }
             #cdb-status-panel { margin-top: 10px; border-top: 2px solid #c1a264; padding-top: 5px; }
             #cdb-status-log { font-size:11px; height: 100px; overflow-y: auto; background: #faf5e9; padding: 5px; border: 1px solid #e0d1b0; border-radius: 3px; }
-            #cdb-tempo-alvo { border: 1px solid #c1a264; padding: 2px 4px; border-radius: 3px; }`,
+            #cdb-tempo-alvo { border: 1px solid #c1a264; padding: 2px 4px; border-radius: 3px; }
+            .cdb-tropa-icon { height: 20px; width: 20px; vertical-align: middle; }
+            .cdb-checkbox-container label { display: flex; align-items: center; cursor: pointer; }
+            .cdb-checkbox-container input { margin-right: 4px; }
+            .cdb-troop-icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #e9d7b4; padding: 5px; border-radius: 3px; }
+            .cdb-coleta-bloqueada label { opacity: 0.5; text-decoration: line-through; cursor: not-allowed; pointer-events: none; }
+            .cdb-coleta-bloqueada input { pointer-events: none; }`,
 
         _createCheckboxGroup(items, nameAttr, checkedDefault = false) {
             const fragment = document.createDocumentFragment();
@@ -108,6 +136,42 @@
             return fragment;
         },
 
+        _createTroopIconSelectors() {
+            const fragment = document.createDocumentFragment();
+            Object.entries(CONFIG.TROOP_DATA).forEach(([unitKey, unitData]) => {
+                const id = `cdb-tropa-${unitKey}`;
+                const container = document.createElement('span');
+                container.className = 'cdb-checkbox-container';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = id;
+                checkbox.value = unitKey;
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.title = unitData.nome;
+                const iconImg = document.createElement('img');
+                iconImg.src = unitData.icone;
+                iconImg.className = 'cdb-tropa-icon';
+                label.appendChild(checkbox);
+                label.appendChild(iconImg);
+                container.appendChild(label);
+                fragment.appendChild(container);
+            });
+            return fragment;
+        },
+
+        updateColetasLockStatus(availableOptions) {
+            const allColetaCheckboxes = this.elements.selecaoColetas.querySelectorAll('input[type="checkbox"]');
+            allColetaCheckboxes.forEach(checkbox => {
+                const container = checkbox.closest('.cdb-checkbox-container');
+                if (availableOptions.includes(checkbox.value)) {
+                    container.classList.remove('cdb-coleta-bloqueada');
+                } else {
+                    container.classList.add('cdb-coleta-bloqueada');
+                }
+            });
+        },
+
         initialize() {
             document.head.insertAdjacentHTML('beforeend', `<style>${this.panelCSS}</style>`);
             const container = document.createElement('div');
@@ -129,8 +193,8 @@
             const tropasLabel = document.createElement('label');
             tropasLabel.textContent = '2. Selecione as Tropas:';
             this.elements.selecaoTropas = document.createElement('div');
-            this.elements.selecaoTropas.className = 'cdb-checkbox-grid';
-            this.elements.selecaoTropas.appendChild(this._createCheckboxGroup(CONFIG.NOMES_TROPAS_PT, 'tropa'));
+            this.elements.selecaoTropas.className = 'cdb-troop-icon-grid';
+            this.elements.selecaoTropas.appendChild(this._createTroopIconSelectors());
             tropasSection.append(tropasLabel, this.elements.selecaoTropas);
             const tempoSection = document.createElement('div');
             tempoSection.className = 'cdb-grupo-secao';
@@ -168,13 +232,24 @@
 
         setupEventListeners() {
             this.elements.btnLigar.addEventListener('click', () => {
-                const tropas = Array.from(this.elements.selecaoTropas.querySelectorAll('input:checked')).map(x => x.value);
-                const tempo = Utils.parseTempoParaSegundos(this.elements.tempoAlvoInput.value);
-                const coletas = Array.from(this.elements.selecaoColetas.querySelectorAll('input:checked')).map(x => x.value);
-                if (!tropas.length || tempo <= 0 || !coletas.length) {
-                    alert("Por favor, selecione coletas, tropas e um tempo válido."); return;
+                const tropasSelecionadas = Array.from(this.elements.selecaoTropas.querySelectorAll('input:checked')).map(x => x.value);
+                const tempoDesejado = Utils.parseTempoParaSegundos(this.elements.tempoAlvoInput.value);
+                const coletasSelecionadas = Array.from(this.elements.selecaoColetas.querySelectorAll('input:checked')).map(x => x.value);
+
+                const todasAsOpcoesDOM = document.querySelectorAll('.scavenge-option');
+                const coletasDisponiveis = Validator.getAvailableScavengeOptions(todasAsOpcoesDOM);
+
+                const coletasValidasParaEnviar = coletasSelecionadas.filter(coleta => coletasDisponiveis.includes(coleta));
+
+                if (!tropasSelecionadas.length || tempoDesejado <= 0 || !coletasValidasParaEnviar.length) {
+                    alert("Por favor, selecione tropas, um tempo válido e pelo menos uma opção de coleta DESBLOQUEADA.");
+                    return;
                 }
-                Scheduler.start({ tropas, tempoDesejado: tempo, nomesColetas: coletas });
+                Scheduler.start({
+                    tropas: tropasSelecionadas,
+                    tempoDesejado: tempoDesejado,
+                    nomesColetas: coletasValidasParaEnviar
+                });
             });
             this.elements.btnParar.addEventListener('click', () => Scheduler.stop());
         },
@@ -215,14 +290,14 @@
                 const el = document.querySelector(`a.units-entry-all[data-unit="${tropa}"]`);
                 const qtd = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
                 tropasDisponiveis[tropa] = qtd;
-                capacidadeTotalDisponivel += qtd * CONFIG.CAPACIDADE_TROPAS[tropa];
+                capacidadeTotalDisponivel += qtd * CONFIG.TROOP_DATA[tropa].capacidade;
             });
             if (capacidadeTotalDisponivel === 0) return 300;
             const capacidadeNecessaria = Utils.calcCapacity(tempoDesejadoSeg, nomeDaColeta);
             document.querySelectorAll("input.units-input-nicer").forEach(e => e.value = "");
             tropasSelecionadas.forEach(tropa => {
-                const proporcao = (tropasDisponiveis[tropa] * CONFIG.CAPACIDADE_TROPAS[tropa]) / capacidadeTotalDisponivel;
-                let tropasAEnviar = Math.floor((capacidadeNecessaria * proporcao) / CONFIG.CAPACIDADE_TROPAS[tropa]);
+                const proporcao = (tropasDisponiveis[tropa] * CONFIG.TROOP_DATA[tropa].capacidade) / capacidadeTotalDisponivel;
+                let tropasAEnviar = Math.floor((capacidadeNecessaria * proporcao) / CONFIG.TROOP_DATA[tropa].capacidade);
                 tropasAEnviar = Math.min(tropasDisponiveis[tropa], tropasAEnviar);
                 const inputTropa = document.querySelector(`input[name="${tropa}"]`);
                 if (inputTropa) {
@@ -268,6 +343,9 @@
         },
         async tick() {
             const scavengeOptions = Array.from(document.querySelectorAll('.scavenge-option'));
+            const coletasDisponiveis = Validator.getAvailableScavengeOptions(scavengeOptions);
+            UI.updateColetasLockStatus(coletasDisponiveis);
+
             const agora = Date.now();
             let htmlStatus = '';
             let umaColetaJaFoiExecutada = false;
@@ -317,7 +395,11 @@
     function main() {
         UI.initialize();
         UI.setupEventListeners();
-        // A chamada para Scheduler.resume() foi REMOVIDA para atender à solicitação.
+
+        const initialOptions = document.querySelectorAll('.scavenge-option');
+        const availableOptions = Validator.getAvailableScavengeOptions(initialOptions);
+        UI.updateColetasLockStatus(availableOptions);
+
         window.addEventListener('beforeunload', () => {
             if (Scheduler.intervalId) {
                 clearInterval(Scheduler.intervalId);
