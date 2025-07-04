@@ -177,7 +177,7 @@
             const container = document.createElement('div');
             container.id = 'cdb-painel-container';
             const title = document.createElement('h3');
-            title.textContent = 'Automação de Coleta (v9.4)';
+            title.textContent = 'Automação de Coleta (v9.5)';
             const configPanel = document.createElement('div');
             configPanel.id = 'cdb-config-panel';
             const coletasSection = document.createElement('div');
