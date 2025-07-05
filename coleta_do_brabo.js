@@ -1,4 +1,4 @@
-// Versão 1.2.1 — última atualização em 2025-07-04T22:13:56Z
+// Versão 1.2.2 — última atualização em 2025-07-04T22:29:29Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
@@ -110,8 +110,7 @@
             .cdb-checkbox-container label { display: flex; align-items: center; cursor: pointer; }
             .cdb-checkbox-container input { margin-right: 4px; }
             .cdb-troop-icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #e9d7b4; padding: 5px; border-radius: 3px; }
-            .cdb-coleta-bloqueada label { opacity: 0.5; text-decoration: line-through; cursor: not-allowed; pointer-events: none; }
-            .cdb-coleta-bloqueada input { pointer-events: none; }`,
+            .cdb-coleta-bloqueada label { opacity: 0.65; cursor: not-allowed; }`,
 
         _createCheckboxGroup(items, nameAttr, checkedDefault = false) {
             const fragment = document.createDocumentFragment();
@@ -164,7 +163,11 @@
             const allColetaCheckboxes = this.elements.selecaoColetas.querySelectorAll('input[type="checkbox"]');
             allColetaCheckboxes.forEach(checkbox => {
                 const container = checkbox.closest('.cdb-checkbox-container');
-                if (availableOptions.includes(checkbox.value)) {
+                const isAvailable = availableOptions.includes(checkbox.value);
+
+                checkbox.disabled = !isAvailable;
+
+                if (isAvailable) {
                     container.classList.remove('cdb-coleta-bloqueada');
                 } else {
                     container.classList.add('cdb-coleta-bloqueada');
