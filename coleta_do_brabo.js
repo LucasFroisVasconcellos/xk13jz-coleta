@@ -1,10 +1,10 @@
-// Versão 1.2.2 — última atualização em 2025-07-04T22:29:29Z
+// Versão 1.2.3 — última atualização em 2025-07-04T23:34:40Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
 // @namespace    http://tampermonkey.net/
-// @version      9.6-Refactored-VisualLock
-// @description  Automação com feedback visual para coletas bloqueadas.
+// @version      9.9-Refactored-CountdownLock
+// @description  Automação com feedback visual para coletas bloqueadas e UI de reserva.
 // @author       Seu Nome Aqui
 // @match        *://*/game.php*screen=place&mode=scavenge*
 // @grant        GM_setValue
@@ -78,8 +78,10 @@
         getAvailableScavengeOptions(scavengeOptionElements) {
             const availableOptions = [];
             scavengeOptionElements.forEach(option => {
-                const isLocked = option.querySelector('a.unlock-button');
-                if (!isLocked) {
+                const isLockedByButton = option.querySelector('a.unlock-button');
+                const isLockedByCountdown = option.querySelector('span.unlock-countdown-icon');
+
+                if (!isLockedByButton && !isLockedByCountdown) {
                     const titleEl = option.querySelector('.title');
                     if (titleEl) {
                         availableOptions.push(titleEl.innerText.trim());
@@ -101,16 +103,20 @@
             .cdb-grupo-secao { margin-bottom: 10px; }
             .cdb-grupo-secao > label { font-weight: bold; display: block; margin-bottom: 5px; }
             .cdb-checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; background: #e9d7b4; padding: 5px; border-radius: 3px; }
-            .cdb-checkbox-container { display: flex; align-items: center; margin: 2px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .cdb-checkbox-container { display: flex; flex-direction: column; align-items: center; margin: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .cdb-grupo-secao-botoes { display: flex; justify-content: space-around; margin-top: 15px; }
             #cdb-status-panel { margin-top: 10px; border-top: 2px solid #c1a264; padding-top: 5px; }
             #cdb-status-log { font-size:11px; height: 100px; overflow-y: auto; background: #faf5e9; padding: 5px; border: 1px solid #e0d1b0; border-radius: 3px; }
             #cdb-tempo-alvo { border: 1px solid #c1a264; padding: 2px 4px; border-radius: 3px; }
             .cdb-tropa-icon { height: 20px; width: 20px; vertical-align: middle; }
             .cdb-checkbox-container label { display: flex; align-items: center; cursor: pointer; }
-            .cdb-checkbox-container input { margin-right: 4px; }
+            .cdb-checkbox-container input[type="checkbox"] { margin-right: 4px; }
             .cdb-troop-icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #e9d7b4; padding: 5px; border-radius: 3px; }
-            .cdb-coleta-bloqueada label { opacity: 0.65; cursor: not-allowed; }`,
+            .cdb-coleta-bloqueada label { opacity: 0.65; cursor: not-allowed; }
+            .cdb-reserve-container { display: flex; flex-direction: column; align-items: center; margin-top: 3px; }
+            .cdb-reserve-label { font-size: 10px; color: #604020; font-weight: bold; }
+            .cdb-reserve-input { width: 50px; border: 1px solid #c1a264; background-color: #faf5e9; text-align: center; font-size: 12px; border-radius: 3px; margin-top: 2px; -moz-appearance: textfield; }
+            .cdb-reserve-input::-webkit-outer-spin-button, .cdb-reserve-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }`,
 
         _createCheckboxGroup(items, nameAttr, checkedDefault = false) {
             const fragment = document.createDocumentFragment();
@@ -139,21 +145,41 @@
             const fragment = document.createDocumentFragment();
             Object.entries(CONFIG.TROOP_DATA).forEach(([unitKey, unitData]) => {
                 const id = `cdb-tropa-${unitKey}`;
-                const container = document.createElement('span');
+                const container = document.createElement('div');
                 container.className = 'cdb-checkbox-container';
+
+                // Checkbox e Ícone
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.title = unitData.nome;
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = id;
                 checkbox.value = unitKey;
-                const label = document.createElement('label');
-                label.htmlFor = id;
-                label.title = unitData.nome;
                 const iconImg = document.createElement('img');
                 iconImg.src = unitData.icone;
                 iconImg.className = 'cdb-tropa-icon';
                 label.appendChild(checkbox);
                 label.appendChild(iconImg);
                 container.appendChild(label);
+
+                // Campo de Reserva
+                const reserveContainer = document.createElement('div');
+                reserveContainer.className = 'cdb-reserve-container';
+                const reserveLabel = document.createElement('label');
+                reserveLabel.textContent = 'Reserva';
+                reserveLabel.htmlFor = `cdb-reserve-${unitKey}`;
+                reserveLabel.className = 'cdb-reserve-label';
+                const reserveInput = document.createElement('input');
+                reserveInput.type = 'number';
+                reserveInput.id = `cdb-reserve-${unitKey}`;
+                reserveInput.className = 'cdb-reserve-input';
+                reserveInput.value = '0';
+                reserveInput.min = '0';
+                reserveContainer.appendChild(reserveLabel);
+                reserveContainer.appendChild(reserveInput);
+                container.appendChild(reserveContainer);
+
                 fragment.appendChild(container);
             });
             return fragment;
@@ -180,7 +206,7 @@
             const container = document.createElement('div');
             container.id = 'cdb-painel-container';
             const title = document.createElement('h3');
-            title.textContent = 'Automação de Coleta (v9.6)';
+            title.textContent = 'Automação de Coleta (v9.9)';
             const configPanel = document.createElement('div');
             configPanel.id = 'cdb-config-panel';
             const coletasSection = document.createElement('div');
@@ -235,7 +261,7 @@
 
         setupEventListeners() {
             this.elements.btnLigar.addEventListener('click', () => {
-                const tropasSelecionadas = Array.from(this.elements.selecaoTropas.querySelectorAll('input:checked')).map(x => x.value);
+                const tropasSelecionadas = Array.from(this.elements.selecaoTropas.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value);
                 const tempoDesejado = Utils.parseTempoParaSegundos(this.elements.tempoAlvoInput.value);
                 const coletasSelecionadas = Array.from(this.elements.selecaoColetas.querySelectorAll('input:checked')).map(x => x.value);
 
@@ -289,15 +315,28 @@
             }
             UI.updateStatus(UI.elements.statusLog.innerHTML + `<div><b>${nomeDaColeta}:</b> Pronto para envio. Calculando...</div>`);
             let tropasDisponiveis = {}, capacidadeTotalDisponivel = 0;
+
             tropasSelecionadas.forEach(tropa => {
+                // Pega o total de tropas da aldeia
                 const el = document.querySelector(`a.units-entry-all[data-unit="${tropa}"]`);
-                const qtd = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
-                tropasDisponiveis[tropa] = qtd;
-                capacidadeTotalDisponivel += qtd * CONFIG.TROOP_DATA[tropa].capacidade;
+                const qtdTotal = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
+
+                // Pega o valor da reserva inserido pelo usuário
+                const reserveInput = document.querySelector(`#cdb-reserve-${tropa}`);
+                const qtdReservada = reserveInput ? parseInt(reserveInput.value, 10) || 0 : 0;
+
+                // Subtrai a reserva do total, garantindo que não seja negativo
+                const qtdDisponivelParaColeta = Math.max(0, qtdTotal - qtdReservada);
+
+                // Usa o novo valor para o resto dos cálculos
+                tropasDisponiveis[tropa] = qtdDisponivelParaColeta;
+                capacidadeTotalDisponivel += qtdDisponivelParaColeta * CONFIG.TROOP_DATA[tropa].capacidade;
             });
+
             if (capacidadeTotalDisponivel === 0) return 300;
             const capacidadeNecessaria = Utils.calcCapacity(tempoDesejadoSeg, nomeDaColeta);
             document.querySelectorAll("input.units-input-nicer").forEach(e => e.value = "");
+
             tropasSelecionadas.forEach(tropa => {
                 const proporcao = (tropasDisponiveis[tropa] * CONFIG.TROOP_DATA[tropa].capacidade) / capacidadeTotalDisponivel;
                 let tropasAEnviar = Math.floor((capacidadeNecessaria * proporcao) / CONFIG.TROOP_DATA[tropa].capacidade);
