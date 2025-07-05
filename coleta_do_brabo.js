@@ -1,4 +1,4 @@
-// Versão 1.2.0 — última atualização em 2025-07-04T02:24:12Z
+// Versão 1.2.1 — última atualização em 2025-07-04T22:13:56Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
@@ -323,7 +323,7 @@
         async start(config) {
             const now = Date.now();
             const initialState = {};
-            config.nomesColetas.forEach(nome => {
+            config.nomesColetas.slice().reverse().forEach(nome => {
                 initialState[nome] = { ativo: true, proximaExecucao: now, tropas: config.tropas, tempoDesejado: config.tempoDesejado };
             });
             this.cachedState = initialState;
