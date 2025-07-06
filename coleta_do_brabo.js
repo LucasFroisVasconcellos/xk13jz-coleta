@@ -1,3 +1,5 @@
+// Versão 1.2.4 — última atualização em 2025-07-05T22:16:53Z
+
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
 // @namespace    http://tampermonkey.net/
