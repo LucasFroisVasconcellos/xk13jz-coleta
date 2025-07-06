@@ -1,9 +1,7 @@
-// Versão 1.2.3 — última atualização em 2025-07-04T23:34:40Z
-
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
 // @namespace    http://tampermonkey.net/
-// @version      9.9-Refactored-CountdownLock
+// @version      11.0-Fusao-Estavel
 // @description  Automação com feedback visual para coletas bloqueadas e UI de reserva.
 // @author       Seu Nome Aqui
 // @match        *://*/game.php*screen=place&mode=scavenge*
@@ -19,7 +17,7 @@
     //  1. CONFIGURAÇÕES E CONSTANTES GLOBAIS
     // =======================================================================
     const CONFIG = {
-        STORAGE_KEY: 'scavenging_automation_state_final_v9.4',
+        STORAGE_KEY: 'scavenging_automation_state_final_v10',
         DELAY_APOS_COLETA_SEGUNDOS: 10,
         TICK_INTERVAL_MS: 5000,
         TROOP_DATA: {
@@ -107,7 +105,7 @@
             .cdb-grupo-secao-botoes { display: flex; justify-content: space-around; margin-top: 15px; }
             #cdb-status-panel { margin-top: 10px; border-top: 2px solid #c1a264; padding-top: 5px; }
             #cdb-status-log { font-size:11px; height: 100px; overflow-y: auto; background: #faf5e9; padding: 5px; border: 1px solid #e0d1b0; border-radius: 3px; }
-            #cdb-tempo-alvo { border: 1px solid #c1a264; padding: 2px 4px; border-radius: 3px; }
+            #cdb-tempo-alvo { border: 1px solid #c1a264; padding: 2px 4px; border-radius: 3px; margin-left: 10px; }
             .cdb-tropa-icon { height: 20px; width: 20px; vertical-align: middle; }
             .cdb-checkbox-container label { display: flex; align-items: center; cursor: pointer; }
             .cdb-checkbox-container input[type="checkbox"] { margin-right: 4px; }
@@ -116,7 +114,13 @@
             .cdb-reserve-container { display: flex; flex-direction: column; align-items: center; margin-top: 3px; }
             .cdb-reserve-label { font-size: 10px; color: #604020; font-weight: bold; }
             .cdb-reserve-input { width: 50px; border: 1px solid #c1a264; background-color: #faf5e9; text-align: center; font-size: 12px; border-radius: 3px; margin-top: 2px; -moz-appearance: textfield; }
-            .cdb-reserve-input::-webkit-outer-spin-button, .cdb-reserve-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }`,
+            .cdb-reserve-input::-webkit-outer-spin-button, .cdb-reserve-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+            .cdb-radio-group { background: #e9d7b4; padding: 5px; border-radius: 3px; }
+            .cdb-radio-option { display: flex; align-items: center; padding: 3px 0; }
+            .cdb-radio-option label { font-size: 12px; cursor: pointer; display: flex; align-items: center; }
+            .cdb-radio-option input[type="radio"] { margin-right: 5px; }
+            .cdb-input-disabled { opacity: 0.5; }
+            .cdb-input-disabled input[type="time"] { pointer-events: none; }`,
 
         _createCheckboxGroup(items, nameAttr, checkedDefault = false) {
             const fragment = document.createDocumentFragment();
@@ -148,7 +152,6 @@
                 const container = document.createElement('div');
                 container.className = 'cdb-checkbox-container';
 
-                // Checkbox e Ícone
                 const label = document.createElement('label');
                 label.htmlFor = id;
                 label.title = unitData.nome;
@@ -163,7 +166,6 @@
                 label.appendChild(iconImg);
                 container.appendChild(label);
 
-                // Campo de Reserva
                 const reserveContainer = document.createElement('div');
                 reserveContainer.className = 'cdb-reserve-container';
                 const reserveLabel = document.createElement('label');
@@ -190,9 +192,7 @@
             allColetaCheckboxes.forEach(checkbox => {
                 const container = checkbox.closest('.cdb-checkbox-container');
                 const isAvailable = availableOptions.includes(checkbox.value);
-
                 checkbox.disabled = !isAvailable;
-
                 if (isAvailable) {
                     container.classList.remove('cdb-coleta-bloqueada');
                 } else {
@@ -206,9 +206,11 @@
             const container = document.createElement('div');
             container.id = 'cdb-painel-container';
             const title = document.createElement('h3');
-            title.textContent = 'Automação de Coleta (v9.9)';
+            title.textContent = 'Automação de Coleta (v11.0)';
             const configPanel = document.createElement('div');
             configPanel.id = 'cdb-config-panel';
+
+            // ... O resto da UI é idêntico ...
             const coletasSection = document.createElement('div');
             coletasSection.className = 'cdb-grupo-secao';
             const coletasLabel = document.createElement('label');
@@ -217,6 +219,7 @@
             this.elements.selecaoColetas.className = 'cdb-checkbox-grid';
             this.elements.selecaoColetas.appendChild(this._createCheckboxGroup(CONFIG.FATORES_COLETA, 'coleta', true));
             coletasSection.append(coletasLabel, this.elements.selecaoColetas);
+
             const tropasSection = document.createElement('div');
             tropasSection.className = 'cdb-grupo-secao';
             const tropasLabel = document.createElement('label');
@@ -225,17 +228,45 @@
             this.elements.selecaoTropas.className = 'cdb-troop-icon-grid';
             this.elements.selecaoTropas.appendChild(this._createTroopIconSelectors());
             tropasSection.append(tropasLabel, this.elements.selecaoTropas);
-            const tempoSection = document.createElement('div');
-            tempoSection.className = 'cdb-grupo-secao';
-            const tempoLabel = document.createElement('label');
-            tempoLabel.htmlFor = 'cdb-tempo-alvo';
-            tempoLabel.textContent = '3. Tempo Desejado (H:M:S):';
+
+            const modoSection = document.createElement('div');
+            modoSection.className = 'cdb-grupo-secao';
+            const modoLabel = document.createElement('label');
+            modoLabel.textContent = '3. Modo de Coleta:';
+            this.elements.modoRadiosContainer = document.createElement('div');
+            this.elements.modoRadiosContainer.className = 'cdb-radio-group';
+
+            const optTempo = document.createElement('div');
+            optTempo.className = 'cdb-radio-option';
+            const labelTempo = document.createElement('label');
+            const radioTempo = document.createElement('input');
+            radioTempo.type = 'radio';
+            radioTempo.name = 'cdb-modo';
+            radioTempo.value = 'tempo';
+            radioTempo.checked = true;
+            labelTempo.appendChild(radioTempo);
+            labelTempo.append(' Definir por Tempo');
             this.elements.tempoAlvoInput = document.createElement('input');
             this.elements.tempoAlvoInput.type = 'time';
             this.elements.tempoAlvoInput.id = 'cdb-tempo-alvo';
             this.elements.tempoAlvoInput.step = '1';
             this.elements.tempoAlvoInput.value = '01:00:00';
-            tempoSection.append(tempoLabel, this.elements.tempoAlvoInput);
+            optTempo.append(labelTempo, this.elements.tempoAlvoInput);
+
+            const optOtimizar = document.createElement('div');
+            optOtimizar.className = 'cdb-radio-option';
+            const labelOtimizar = document.createElement('label');
+            const radioOtimizar = document.createElement('input');
+            radioOtimizar.type = 'radio';
+            radioOtimizar.name = 'cdb-modo';
+            radioOtimizar.value = 'otimizar';
+            labelOtimizar.appendChild(radioOtimizar);
+            labelOtimizar.append(' Usar Todas as Tropas (exceto as que estão na reserva)');
+            optOtimizar.appendChild(labelOtimizar);
+
+            this.elements.modoRadiosContainer.append(optTempo, optOtimizar);
+            modoSection.append(modoLabel, this.elements.modoRadiosContainer);
+
             const botoesSection = document.createElement('div');
             botoesSection.className = 'cdb-grupo-secao-botoes';
             this.elements.btnLigar = document.createElement('button');
@@ -247,7 +278,9 @@
             this.elements.btnParar.className = 'btn btn-disabled';
             this.elements.btnParar.textContent = 'Parar Automação';
             botoesSection.append(this.elements.btnLigar, this.elements.btnParar);
-            configPanel.append(coletasSection, tropasSection, tempoSection, botoesSection);
+
+            configPanel.append(coletasSection, tropasSection, modoSection, botoesSection);
+
             const statusPanel = document.createElement('div');
             statusPanel.id = 'cdb-status-panel';
             const statusTitle = document.createElement('h4');
@@ -255,11 +288,23 @@
             this.elements.statusLog = document.createElement('div');
             this.elements.statusLog.id = 'cdb-status-log';
             statusPanel.append(statusTitle, this.elements.statusLog);
+
             container.append(title, configPanel, statusPanel);
             document.body.appendChild(container);
         },
 
         setupEventListeners() {
+            // Listener para os modos de cálculo (Radio)
+            this.elements.modoRadiosContainer.addEventListener('change', (e) => {
+                const timeOptionContainer = this.elements.tempoAlvoInput.parentElement;
+                if (e.target.value === 'otimizar') {
+                    timeOptionContainer.classList.add('cdb-input-disabled');
+                } else {
+                    timeOptionContainer.classList.remove('cdb-input-disabled');
+                }
+            });
+
+            // Listener para o botão de Ligar
             this.elements.btnLigar.addEventListener('click', () => {
                 const tropasSelecionadas = Array.from(this.elements.selecaoTropas.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value);
                 const tempoDesejado = Utils.parseTempoParaSegundos(this.elements.tempoAlvoInput.value);
@@ -270,16 +315,25 @@
 
                 const coletasValidasParaEnviar = coletasSelecionadas.filter(coleta => coletasDisponiveis.includes(coleta));
 
-                if (!tropasSelecionadas.length || tempoDesejado <= 0 || !coletasValidasParaEnviar.length) {
-                    alert("Por favor, selecione tropas, um tempo válido e pelo menos uma opção de coleta DESBLOQUEADA.");
+                if (!tropasSelecionadas.length || !coletasValidasParaEnviar.length) {
+                    alert("Por favor, selecione tropas e pelo menos uma opção de coleta DESBLOQUEADA.");
                     return;
                 }
+                const modoSelecionado = this.elements.modoRadiosContainer.querySelector('input[name="cdb-modo"]:checked').value;
+                if (modoSelecionado === 'tempo' && tempoDesejado <= 0) {
+                    alert("Por favor, insira um tempo válido para o modo 'Definir por Tempo'.");
+                    return;
+                }
+
                 Scheduler.start({
                     tropas: tropasSelecionadas,
                     tempoDesejado: tempoDesejado,
-                    nomesColetas: coletasValidasParaEnviar
+                    nomesColetas: coletasValidasParaEnviar,
+                    modo: modoSelecionado
                 });
             });
+
+            // Listener para o botão de Parar
             this.elements.btnParar.addEventListener('click', () => Scheduler.stop());
         },
 
@@ -297,62 +351,123 @@
     };
 
     // =======================================================================
-    //  4. MÓDULO DE COLETA (Scavenge)
+    //  MÓDULO DE OTIMIZAÇÃO (CÉREBRO DO MODO "USAR TODAS AS TROPAS")
+    // =======================================================================
+    const Otimizador = {
+        calcularAlocacao(tropasSelecionadas, coletasDisponiveis) {
+            const tropasParaColeta = this._getTropasParaColeta(tropasSelecionadas);
+            if (coletasDisponiveis.length === 0 || tropasSelecionadas.length === 0) return {};
+
+            const S = coletasDisponiveis.reduce((soma, nomeColeta) => soma + (1 / CONFIG.FATORES_COLETA[nomeColeta]), 0);
+            if (S === 0) return {};
+
+            const planoDeAlocacao = {};
+            const fracoes = [];
+
+            coletasDisponiveis.forEach(nomeColeta => {
+                planoDeAlocacao[nomeColeta] = {};
+                const fatorColeta = CONFIG.FATORES_COLETA[nomeColeta];
+                tropasSelecionadas.forEach(tropa => {
+                    const totalTropasTipo = tropasParaColeta[tropa];
+                    if (totalTropasTipo > 0) {
+                        const alocacaoBruta = totalTropasTipo / (fatorColeta * S);
+                        planoDeAlocacao[nomeColeta][tropa] = Math.floor(alocacaoBruta);
+                        fracoes.push({ fracao: alocacaoBruta - Math.floor(alocacaoBruta), nomeColeta, tropa });
+                    } else {
+                        planoDeAlocacao[nomeColeta][tropa] = 0;
+                    }
+                });
+            });
+
+            tropasSelecionadas.forEach(tropa => {
+                const totalAlocado = coletasDisponiveis.reduce((soma, nc) => soma + planoDeAlocacao[nc][tropa], 0);
+                let restante = tropasParaColeta[tropa] - totalAlocado;
+                const fracoesDaTropa = fracoes.filter(f => f.tropa === tropa).sort((a, b) => b.fracao - a.fracao);
+                if (fracoesDaTropa.length > 0) {
+                    for (let i = 0; i < restante; i++) {
+                        const coletaParaAdicionar = fracoesDaTropa[i % fracoesDaTropa.length].nomeColeta;
+                        planoDeAlocacao[coletaParaAdicionar][tropa]++;
+                    }
+                }
+            });
+            return planoDeAlocacao;
+        },
+        _getTropasParaColeta(tropasSelecionadas) {
+            const tropasParaColeta = {};
+            tropasSelecionadas.forEach(tropa => {
+                const el = document.querySelector(`a.units-entry-all[data-unit="${tropa}"]`);
+                const qtdTotal = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
+                const reserveInput = document.querySelector(`#cdb-reserve-${tropa}`);
+                const qtdReservada = reserveInput ? parseInt(reserveInput.value, 10) || 0 : 0;
+                tropasParaColeta[tropa] = Math.max(0, qtdTotal - qtdReservada);
+            });
+            return tropasParaColeta;
+        }
+    };
+
+    // =======================================================================
+    //  4. MÓDULO DE COLETA (Scavenge) - "SMART SENDER"
     // =======================================================================
     const Scavenge = {
-        async execute(nomeDaColeta, tropasSelecionadas, tempoDesejadoSeg, scavengeOptions) {
-            UI.updateStatus(`<div>Verificando: <b>${nomeDaColeta}</b>...</div>`);
+        async execute(config) {
+            const { nomeDaColeta, modo, tropas, tempoDesejado, scavengeOptions } = config;
+
             const cardPai = scavengeOptions.find(option => {
                 const titleEl = option.querySelector('.title');
                 return titleEl && titleEl.innerText.trim() === nomeDaColeta;
             });
-            if (!cardPai) return 300;
+            if (!cardPai) return { enviado: false, duracaoSegundos: 300 };
+
             const botaoComecar = cardPai.querySelector('a.free_send_button');
             if (!botaoComecar) {
-                UI.updateStatus(UI.elements.statusLog.innerHTML + `<div><b>${nomeDaColeta}:</b> Em andamento. Sincronizando...</div>`);
                 const tempoRestanteEl = cardPai.querySelector('.return-countdown') || cardPai.querySelector('.duration');
-                return Utils.parseTempoParaSegundos(tempoRestanteEl?.textContent.trim() || "0:00:00");
+                return { enviado: false, duracaoSegundos: Utils.parseTempoParaSegundos(tempoRestanteEl?.textContent.trim() || "0:00:00") };
             }
-            UI.updateStatus(UI.elements.statusLog.innerHTML + `<div><b>${nomeDaColeta}:</b> Pronto para envio. Calculando...</div>`);
-            let tropasDisponiveis = {}, capacidadeTotalDisponivel = 0;
 
-            tropasSelecionadas.forEach(tropa => {
-                // Pega o total de tropas da aldeia
-                const el = document.querySelector(`a.units-entry-all[data-unit="${tropa}"]`);
-                const qtdTotal = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
+            let tropasAEnviar = {};
 
-                // Pega o valor da reserva inserido pelo usuário
-                const reserveInput = document.querySelector(`#cdb-reserve-${tropa}`);
-                const qtdReservada = reserveInput ? parseInt(reserveInput.value, 10) || 0 : 0;
+            if (modo === 'tempo') {
+                // LÓGICA ORIGINAL DO 10.2 PARA O MODO TEMPO
+                let tropasDisponiveis = {}, capacidadeTotalDisponivel = 0;
+                tropas.forEach(tropa => {
+                    const el = document.querySelector(`a.units-entry-all[data-unit="${tropa}"]`);
+                    const qtdTotal = el ? parseInt(el.textContent.replace(/[()]/g, ""), 10) : 0;
+                    const reserveInput = document.querySelector(`#cdb-reserve-${tropa}`);
+                    const qtdReservada = reserveInput ? parseInt(reserveInput.value, 10) || 0 : 0;
+                    const qtdDisponivelParaColeta = Math.max(0, qtdTotal - qtdReservada);
+                    tropasDisponiveis[tropa] = qtdDisponivelParaColeta;
+                    capacidadeTotalDisponivel += qtdDisponivelParaColeta * CONFIG.TROOP_DATA[tropa].capacidade;
+                });
 
-                // Subtrai a reserva do total, garantindo que não seja negativo
-                const qtdDisponivelParaColeta = Math.max(0, qtdTotal - qtdReservada);
+                if (capacidadeTotalDisponivel === 0) return { enviado: false, duracaoSegundos: 300 };
+                const capacidadeNecessaria = Utils.calcCapacity(tempoDesejado, nomeDaColeta);
 
-                // Usa o novo valor para o resto dos cálculos
-                tropasDisponiveis[tropa] = qtdDisponivelParaColeta;
-                capacidadeTotalDisponivel += qtdDisponivelParaColeta * CONFIG.TROOP_DATA[tropa].capacidade;
-            });
+                tropas.forEach(tropa => {
+                    const proporcao = (tropasDisponiveis[tropa] * CONFIG.TROOP_DATA[tropa].capacidade) / capacidadeTotalDisponivel;
+                    let numTropas = Math.floor((capacidadeNecessaria * proporcao) / CONFIG.TROOP_DATA[tropa].capacidade);
+                    tropasAEnviar[tropa] = Math.min(tropasDisponiveis[tropa], numTropas);
+                });
 
-            if (capacidadeTotalDisponivel === 0) return 300;
-            const capacidadeNecessaria = Utils.calcCapacity(tempoDesejadoSeg, nomeDaColeta);
+            } else { // modo === 'otimizar'
+                tropasAEnviar = config.tropasAEnviar;
+            }
+
             document.querySelectorAll("input.units-input-nicer").forEach(e => e.value = "");
-
-            tropasSelecionadas.forEach(tropa => {
-                const proporcao = (tropasDisponiveis[tropa] * CONFIG.TROOP_DATA[tropa].capacidade) / capacidadeTotalDisponivel;
-                let tropasAEnviar = Math.floor((capacidadeNecessaria * proporcao) / CONFIG.TROOP_DATA[tropa].capacidade);
-                tropasAEnviar = Math.min(tropasDisponiveis[tropa], tropasAEnviar);
+            Object.entries(tropasAEnviar).forEach(([tropa, qtd]) => {
                 const inputTropa = document.querySelector(`input[name="${tropa}"]`);
                 if (inputTropa) {
-                    inputTropa.value = tropasAEnviar;
+                    inputTropa.value = qtd;
                     inputTropa.dispatchEvent(new Event("input", { bubbles: true }));
                     inputTropa.dispatchEvent(new Event("change", { bubbles: true }));
                 }
             });
+
             await new Promise(r => setTimeout(r, 250));
             botaoComecar.click();
-            UI.updateStatus(UI.elements.statusLog.innerHTML + `<div><b>${nomeDaColeta}:</b> Coleta iniciada!</div>`);
-            const tempoRealLido = cardPai.querySelector('.duration')?.textContent.trim() || "0:00:00";
-            return Utils.parseTempoParaSegundos(tempoRealLido);
+            await new Promise(r => setTimeout(r, 500));
+
+            const tempoRealLido = cardPai.querySelector('.return-countdown')?.textContent.trim() || "0:00:00";
+            return { enviado: true, duracaoSegundos: Utils.parseTempoParaSegundos(tempoRealLido) };
         }
     };
 
@@ -366,7 +481,13 @@
             const now = Date.now();
             const initialState = {};
             config.nomesColetas.slice().reverse().forEach(nome => {
-                initialState[nome] = { ativo: true, proximaExecucao: now, tropas: config.tropas, tempoDesejado: config.tempoDesejado };
+                initialState[nome] = {
+                    ativo: true,
+                    proximaExecucao: now,
+                    tropas: config.tropas,
+                    tempoDesejado: config.tempoDesejado,
+                    modo: config.modo
+                };
             });
             this.cachedState = initialState;
             await Utils.setState(this.cachedState);
@@ -385,49 +506,93 @@
         },
         async tick() {
             const scavengeOptions = Array.from(document.querySelectorAll('.scavenge-option'));
-            const coletasDisponiveis = Validator.getAvailableScavengeOptions(scavengeOptions);
-            UI.updateColetasLockStatus(coletasDisponiveis);
+            const coletasDisponiveisNoDOM = Validator.getAvailableScavengeOptions(scavengeOptions);
+            UI.updateColetasLockStatus(coletasDisponiveisNoDOM);
+
+            if (this.intervalId === null || Object.keys(this.cachedState).length === 0) return;
 
             const agora = Date.now();
             let htmlStatus = '';
             let umaColetaJaFoiExecutada = false;
             let estadoFoiModificado = false;
+            const modoGeral = Object.values(this.cachedState)[0].modo;
+
+            // Bloco de Ação para 'otimizar'
+            if (modoGeral === 'otimizar' && !umaColetaJaFoiExecutada) {
+                const coletasProntas = Object.keys(this.cachedState)
+                    .filter(nome => this.cachedState[nome].proximaExecucao <= agora && coletasDisponiveisNoDOM.includes(nome));
+
+                if (coletasProntas.length > 0) {
+                    umaColetaJaFoiExecutada = true;
+                    estadoFoiModificado = true;
+                    const tropasParaOtimizar = Object.values(this.cachedState)[0].tropas;
+                    const planoDeAlocacao = Otimizador.calcularAlocacao(tropasParaOtimizar, coletasProntas);
+
+                    for (const nomeColeta of coletasProntas) {
+                        const resultado = await Scavenge.execute({
+                            nomeDaColeta: nomeColeta,
+                            modo: 'otimizar',
+                            tropasAEnviar: planoDeAlocacao[nomeColeta],
+                            scavengeOptions
+                        });
+                        this.cachedState[nomeColeta].proximaExecucao = Date.now() + (resultado.duracaoSegundos + CONFIG.DELAY_APOS_COLETA_SEGUNDOS) * 1000;
+                        if(resultado.enviado) await new Promise(r => setTimeout(r, 300));
+                    }
+                }
+            }
+
+            // Bloco de Ação e Status para 'tempo' (Estrutura Original 10.2)
             for (const nomeColeta in this.cachedState) {
                 const agendamento = this.cachedState[nomeColeta];
                 if (!agendamento.ativo) continue;
-                if (agora >= agendamento.proximaExecucao && !umaColetaJaFoiExecutada) {
+
+                if (modoGeral === 'tempo' && agora >= agendamento.proximaExecucao && !umaColetaJaFoiExecutada && coletasDisponiveisNoDOM.includes(nomeColeta)) {
                     umaColetaJaFoiExecutada = true;
                     estadoFoiModificado = true;
                     htmlStatus += `<div><b>${nomeColeta}:</b> Executando agora...</div>`;
-                    try {
-                        const duracaoRealSegundos = await Scavenge.execute(nomeColeta, agendamento.tropas, agendamento.tempoDesejado, scavengeOptions);
-                        const proximaExecucao = Date.now() + (duracaoRealSegundos + CONFIG.DELAY_APOS_COLETA_SEGUNDOS) * 1000;
-                        this.cachedState[nomeColeta].proximaExecucao = proximaExecucao;
-                    } catch (error) {
-                        console.error(`Erro ao executar a coleta "${nomeColeta}":`, error);
-                        htmlStatus += `<div><b style="color:red;">ERRO em ${nomeColeta}.</b> Tentando em 5 min.</div>`;
-                        this.cachedState[nomeColeta].proximaExecucao = Date.now() + (300 * 1000);
-                    }
+
+                    const resultado = await Scavenge.execute({
+                        nomeDaColeta: nomeColeta,
+                        modo: 'tempo',
+                        tropas: agendamento.tropas,
+                        tempoDesejado: agendamento.tempoDesejado,
+                        scavengeOptions
+                    });
+
+                    this.cachedState[nomeColeta].proximaExecucao = Date.now() + (resultado.duracaoSegundos + CONFIG.DELAY_APOS_COLETA_SEGUNDOS) * 1000;
+
                 } else {
                     if (agendamento.proximaExecucao > agora) {
                         const segundosFaltantes = (agendamento.proximaExecucao - agora) / 1000;
                         htmlStatus += `<div><b>${nomeColeta}:</b> Próximo em ${Utils.formatarSegundos(segundosFaltantes)}</div>`;
+                    } else if (modoGeral !== 'otimizar' || this.cachedState[nomeColeta].proximaExecucao <= agora) {
+                         htmlStatus += `<div><b>${nomeColeta}:</b> Aguardando...</div>`;
                     }
                 }
             }
+
             if (estadoFoiModificado) {
                 await Utils.setState(this.cachedState);
             }
+
+            // Se o modo for otimizar, o status precisa ser reconstruído após a ação
+            if (modoGeral === 'otimizar') {
+                htmlStatus = '';
+                 for (const nomeColeta in this.cachedState) {
+                    const agendamento = this.cachedState[nomeColeta];
+                     if (agendamento.proximaExecucao > agora) {
+                        const segundosFaltantes = (agendamento.proximaExecucao - agora) / 1000;
+                        htmlStatus += `<div><b>${nomeColeta}:</b> Próximo em ${Utils.formatarSegundos(segundosFaltantes)}</div>`;
+                    } else {
+                         htmlStatus += `<div><b>${nomeColeta}:</b> Aguardando...</div>`;
+                    }
+                 }
+            }
+
             UI.updateStatus(htmlStatus || "Automação parada. Nenhum agendamento ativo.");
         },
         async resume() {
-            this.cachedState = await Utils.getState();
-            if (Object.keys(this.cachedState).length > 0) {
-                if (this.intervalId) clearInterval(this.intervalId);
-                this.intervalId = setInterval(this.tick.bind(this), CONFIG.TICK_INTERVAL_MS);
-                UI.setAutomationState(true);
-                this.tick();
-            }
+            // Removido para garantir que o script não reinicie sozinho.
         }
     };
 
