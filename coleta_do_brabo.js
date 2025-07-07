@@ -1,4 +1,4 @@
-// Versão 1.2.4 — última atualização em 2025-07-05T22:16:53Z
+// Versão 1.2.5 — última atualização em 2025-07-07T15:33:22Z
 
 // ==UserScript==
 // @name         Coletor do Brabo (Refatorado v10)
@@ -67,8 +67,13 @@
             const resultadoFinal = potenciaBase / (100 * Math.pow(fator, 2));
             return Math.sqrt(resultadoFinal);
         },
-        async getState() { return await GM_getValue(CONFIG.STORAGE_KEY, {}); },
-        async setState(state) { await GM_setValue(CONFIG.STORAGE_KEY, state); }
+        async getState() {
+            const raw = sessionStorage.getItem(CONFIG.STORAGE_KEY);
+            return raw ? JSON.parse(raw) : {};
+        },
+        async setState(state) {
+            sessionStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state));
+        }
     };
 
     // =======================================================================
